@@ -59,3 +59,20 @@ stages:
     metrics:
     - models/metrics-evaluate.json:
         cache: false
+  evaluate-last:
+    cmd: >-
+      python predict.py
+      --model ${train.model}
+      --image_size ${train.image_size}
+      --num_classes ${train.num_classes}
+      --dataset ${evaluate.dataset}
+      --gt ${evaluate.gt}
+      --single_model_path ${train.outdir}/model.pt
+    deps:
+    - data/test
+    - predict.py
+    - models/model.pt
+    params:
+    - base
+    - train
+    - evaluate

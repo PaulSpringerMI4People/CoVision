@@ -97,3 +97,47 @@ stages:
       hash: md5
       md5: 49a445cb95476dbc8dc7e7e2530050f0
       size: 74
+  evaluate-last:
+    cmd: python predict.py --model efficientnet-b2 --image_size 224 --num_classes
+      4 --dataset ./data/test/images --gt ./data/test/gt.csv --single_model_path models/model.pt
+    deps:
+    - path: data/test
+      hash: md5
+      md5: e03ff535d9f3da7f51ed642b70ec5d95.dir
+      size: 549163
+      nfiles: 80
+    - path: models/model.pt
+      hash: md5
+      md5: b7e4e7f26989ba76d1009d1a78724b9c
+      size: 31270857
+    - path: predict.py
+      hash: md5
+      md5: 43fb163a6a3546d1bd6b47cf92fc6ff5
+      size: 6001
+    params:
+      params.yaml:
+        base:
+          random_seed: 1
+        evaluate:
+          dataset: ./data/test/images
+          gt: ./data/test/gt.csv
+          device: cuda
+          val_bs: 16
+        train:
+          fold: 1
+          dataset: ./data/train/images
+          gt: ./data/train/gt.csv
+          num_classes: 4
+          metric: f1_score
+          device: cuda
+          epochs: 30
+          train_batch: 16
+          val_batch: 16
+          outdir: models
+          lr: 0.001
+          dropout_rate: 0.3
+          drop_connect_rate: 0.2
+          batch_norm_momentum: 0.99
+          batch_norm_epsilon: 0.001
+          model: efficientnet-b2
+          image_size: 224
