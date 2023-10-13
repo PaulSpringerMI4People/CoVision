@@ -28,9 +28,29 @@ function parseArgs() {
     });
     parser.addArgument('--normalize', {
         type: 'string',
-        choices:['ImagenetCenteredRgb', 'ImagenetMeanStd'],
-        defaultValue: 'ImagenetMeanStd',
+        choices:['none', 'MeanStd', 'ImagenetCenteredRgb'],
+        defaultValue: 'none',
         help: ''
+    });
+    parser.addArgument('--dataFormat', {
+        type: 'string',
+        choices:['channels_first', 'channels_last'],
+        // defaultValue: '',
+        help: ''
+        // channels_last: (rows, cols, channels)
+        // channels_first: (channels, rows, cols)
+    });
+    parser.addArgument('--mean', {
+        type: 'string',
+    });
+    parser.addArgument('--std', {
+        type: 'string',
+    });
+    parser.addArgument('--div', {
+        type: 'float',
+    });
+    parser.addArgument('--sub', {
+        type: 'float',
     });
     return parser.parseArgs();
 }
@@ -46,6 +66,10 @@ function normalize(img, mean, std, axis) {
 
 async function main() {
     const args = parseArgs();
+
+    mean = args.mean?.split(',').map(Number);
+    std = args.std?.split(',').map(Number);
+
     if (args.gpu) {
         tf = require('@tensorflow/tfjs-node-gpu');
     } else {
@@ -67,28 +91,52 @@ async function main() {
         csvDataset
             .map(({ xs, ys }) => {
                 const imageBuffer = fs.readFileSync(`${args.dataset}/images/${xs['image']}`);
-                let tensor;
-                if (args.normalize == 'ImagenetMeanStd') {
-                    tensor = tf.node.decodeImage(imageBuffer, 3)
-                        .div(255.0)
-                        .resizeNearestNeighbor([224, 224])
-                        .transpose([2, 0, 1])
-                        ;
-                    mean = [0.485, 0.456, 0.406];
-                    std = [0.229, 0.224, 0.225];
-                    tensor = tensor.sub(tf.reshape(mean, [mean.length, 1, 1]))
-                    tensor = tensor.div(tf.reshape(std, [std.length, 1, 1]));
 
-                } else if (args.normalize == 'ImagenetCenteredRgb'){
-                    tensor = tf.node.decodeImage(imageBuffer, 3)
-                        .div(255.0)
+                let tensor = tf.node.decodeImage(imageBuffer, 3)
+                    .cast('float32')
+                    .resizeNearestNeighbor([224, 224])
+                    ;
+
+                if (args.normalize == 'ImagenetCenteredRgb') {
+                    tensor = tensor.div(255.0)
                         .resizeNearestNeighbor([224, 224])
                         .expandDims()
                         .transpose([0, 3, 1, 2])
                         ;
+
                     tensor = normalize(tensor, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225], 1)
                     tensor = tf.squeeze(tensor);
-                }else{
+                } else if (args.normalize == 'none') {
+                    // do none
+                } else if (args.normalize == 'MeanStd') {
+                    if (args.div) {
+                        tensor = tensor.div(args.div);
+                    }
+                    if (args.sub) {
+                        tensor = tensor.sub(args.sub);
+                    }
+
+                    if (args.dataFormat === 'channels_first') {
+                        tensor = tensor.transpose([2, 0, 1])
+                    }
+
+                    // Zero-center by mean pixel
+                    if (args.dataFormat === 'channels_first') {
+                        if (mean) {
+                            tensor = tensor.sub(tf.reshape(mean, [mean.length, 1, 1]))
+                        }
+                        if (std) {
+                            tensor = tensor.div(tf.reshape(std, [std.length, 1, 1]));
+                        }
+                    } else {
+                        if (mean) {
+                            tensor = tensor.sub(tf.reshape(mean, [1, 1, mean.length]));
+                        }
+                        if (std) {
+                            tensor = tensor.div(tf.reshape(std, [1, 1, std.length]));
+                        }
+                    }
+                } else {
                     throw new Error('NotImplemented');
                 }
 
